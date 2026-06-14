@@ -1,0 +1,117 @@
+name: 'Build and publish to GitHub Releases'
+on: workflow_dispatch
+jobs:
+  build-sdk:
+    name: 'Build BmSDK.csproj'
+    runs-on: windows-latest
+    steps:
+    - name: 'Checkout target commit'
+      uses: actions/checkout@v6
+
+    - name: 'Set up .NET SDK'
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: 'Build BmSDK in Release mode'
+      run: >
+        dotnet publish ./src/BmSDK/BmSDK.csproj
+        -o ${{ github.workspace }}/publish/Binaries/Win32/sdk/
+        --nologo
+
+    - name: 'Upload binaries for later processing'
+      uses: actions/upload-artifact@v7
+      with:
+        name: SDK
+        path: '${{ github.workspace }}/publish/'
+        if-no-files-found: error
+
+  build-host:
+    name: 'Build BmSDK.Host.vcxproj'
+    runs-on: windows-latest
+    steps:
+    - name: 'Checkout target commit'
+      uses: actions/checkout@v6
+
+    - name: 'Set up MSBuild'
+      uses: microsoft/setup-msbuild@v3
+
+    - name: 'Install VCPKG'
+      uses: lukka/run-vcpkg@v11
+      with:
+        vcpkgConfigurationJsonGlob: '**/src/BmSDK.Host/vcpkg-configuration.json'
+
+    - name: 'Build BmSDK.Host in Release mode'
+      run: |
+        # Set up dependency resolution
+        vcpkg integrate install
+
+        # Build BmSDK.Host
+        MSBuild ./src/BmSDK.Host/BmSDK.Host.vcxproj `
+        -p:Configuration=Release -p:Platform=x86 `
+        -p:OutDir=${{ github.workspace }}/publish/Binaries/Win32/plugins/ `
+        -v:m -nologo
+
+    - name: 'Upload binaries for later processing'
+      uses: actions/upload-artifact@v7
+      with:
+        name: Host
+        path: '${{ github.workspace }}/publish/'
+        if-no-files-found: error
+
+  create-package:
+    name: 'Create a complete ZIP'
+    runs-on: windows-latest
+    needs: [build-sdk, build-host]
+    steps:
+    - name: 'Checkout target commit'
+      uses: actions/checkout@v6
+
+    - name: 'Merge build artifacts into one directory'
+      uses: actions/download-artifact@v8
+      with:
+        path: '${{ github.workspace }}/publish/'
+        merge-multiple: true
+
+    - name: 'Retrieve latest Ultimate ASI Loader DLL'
+      run: |
+        Invoke-WebRequest -Uri `
+          'https://github.com/ThirteenAG/Ultimate-ASI-Loader/releases/download/Win32-latest/dinput8-Win32.zip' `
+          -OutFile './dinput8-Win32.zip'
+        Expand-Archive -Path './dinput8-Win32.zip'  -DestinationPath './dinput8-Win32/'
+        mv './dinput8-Win32/dinput8.dll' '${{ github.workspace }}/publish/Binaries/Win32/'
+
+    - name: 'Copy over ScriptsDev and example scripts'
+      run: |
+        # Maps source paths relative to the repo root to
+        # destination paths relative to the export directory
+        $requiredFiles = @{
+          'README.md' = 'README.md'
+          'LICENSE.md' = 'LICENSE.md'
+          'bin/BmGame/Scripts/MinimalScript.cs' = 'BmGame/Scripts/MinimalScript.cs'
+          'bin/BmGame/ScriptsDev/ScriptsDev.csproj' = 'BmGame/ScriptsDev/ScriptsDev.csproj'
+          'bin/BmGame/ScriptsDev/ScriptsDev.slnx' = 'BmGame/ScriptsDev/ScriptsDev.slnx'
+          'bin/BmGame/ScriptsDev/ScriptsDev.code-workspace' = 'BmGame/ScriptsDev/ScriptsDev.code-workspace'
+          'bin/BmGame/ScriptsDev/Properties/' = 'BmGame/ScriptsDev/Properties/'
+          'bin/BmGame/Mods/ModTemplate/' = 'BmGame/Mods/ModTemplate/'
+        }
+
+        # Copy over files to export directory
+        foreach ($srcKey in $requiredFiles.Keys) {
+          $srcPath = Join-Path '${{ github.workspace }}' $srcKey
+          $dst = Join-Path '${{ github.workspace }}/publish/' $requiredFiles[$srcKey]
+          $dstDir = Split-Path $dst -Parent
+
+          if (-not (Test-Path $dstDir)) {
+            mkdir $dstDir
+          }
+          
+          cp $srcPath $dst -Recurse -Force
+        }
+
+    - name: 'Uploading complete build'
+      uses: actions/upload-artifact@v7
+      with:
+        name: BmSDK
+        path: '${{ github.workspace }}/publish/'
+        if-no-files-found: error
