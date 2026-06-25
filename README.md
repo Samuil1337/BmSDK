@@ -1,5 +1,9 @@
 # BmSDK
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE.md)
+[![License: MIT](https://img.shields.io/github/license/etkramer/BmSDK)](./LICENSE.md)
+[![Latest release](https://img.shields.io/github/v/release/etkramer/BmSDK)](../../releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/etkramer/BmSDK/total)](../../releases/latest)
+[![.NET 10](https://img.shields.io/badge/.NET-10.0-512bd4)](https://dotnet.microsoft.com/en-us/download/dotnet/10.0)
+[![Community Discord](https://img.shields.io/discord/1218395254013558844?logo=discord&logoColor=E0E3FF&label=Community%20Discord&labelColor=5865F2)](https://discord.com/invite/arkhamworkshop)
 
 <img height="656" alt="Screenshot 2025-08-23 at 5 05 46 PM" src="https://github.com/user-attachments/assets/75e1de77-5805-4bde-b25c-ddc9481c49d3" />
 
